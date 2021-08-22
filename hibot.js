@@ -1,15 +1,48 @@
-const scriptName = "Hibot";//BotName
+/*
+* 원본소스: https://cafe.naver.com/nameyee/14642
+*/
+
+const MY_KEY = "336727607"; //봇의 user_id. 
+const BOT_NAME = "봇"; //봇의 이름
+const admin_name = '마시멜로'; //관리자 이름.
+const admin_hash = '1988534416'; //관리자 프로필 해시코드. 채팅방에 "/해시코드"라고 입력해 확인해 볼 수 있음.
+const kaan = { //각 방마다의 입퇴장문구.
+    /* 
+    * 자신의 입맛에 맞게 작성해 주시면 됩니다.
+    */ 
+    '방1': { //방1
+        'in_new':'${name}님 어서오세요!', //입장문구(새로 왔을때)
+        'in_old':'${name}님 돌아오신 것을 환영해요!', //입장문구 (다시 돌아왔을 때)
+        'out':'${name}님 안녕히 가세요!', //퇴장문구
+        'kick':'${name1}님이 {$name2}님을 내보냈습니다.' //내보내졌을 때 문구
+    }, 
+    
+    '방2':{ //방2
+        'in_new':'${name}님 공지 필독!', //입장문구 (새로 왔을때)
+        'in_old':'${name}님, 들낙 자제해 주세요:)', //입장문구(다시 돌아왔을 때)
+        'out':'${name}님이 채팅방을 나가셨습니다.', //퇴장문구
+        'kick':'${name2}님이 ${name1}님에 의해 내보내졌습니다.' //내보내졌을 때 문구
+    }
+    
+    /* 예시
+    '마시멜로의 카카오톡 봇방':{
+        'in_new':'${name}님, 어서오세요!',
+        'in_old':'${name}님, 오랜만이에요!',
+        'out':'${name}님, 안녕히 가세요!',
+        'kick':'${name1}님이 ${name2}님을 내보내셨습니다.'
+    }
+    */
+}
+
+const scriptName = "db";
+const Lw = "\u200b".repeat(500);
+const fs = FileStream;
+const pb="[Bot] ";
 const Context = android.content.Context;
 const SQLiteDatabase = android.database.sqlite.SQLiteDatabase;
 const DatabaseUtils = android.database.DatabaseUtils;
 const PowerManager = android.os.PowerManager;
 const Base64 = android.util.Base64;
-const ProcessBuilder = java.lang.ProcessBuilder;
-const Process = java.lang.Process;
-const InputStreamReader = java.io.InputStreamReader;
-const OutputStreamReader = java.io.OutputStreamReader;
-const BufferedReader = java.io.BufferedReader;
-const ArrayList = java.util.ArrayList;
 const _Array = java.lang.reflect.Array;
 const _Byte = java.lang.Byte;
 const _Integer = java.lang.Integer;
@@ -19,356 +52,741 @@ const Timer = java.util.Timer;
 const TimerTask = java.util.TimerTask;
 const Cipher = javax.crypto.Cipher;
 const IvParameterSpec = javax.crypto.spec.IvParameterSpec;
-const System = java.lang.System;
 const PBEKeySpec = javax.crypto.spec.PBEKeySpec;
 const SecretKeyFactory = javax.crypto.SecretKeyFactory;
 const SecretKeySpec = javax.crypto.spec.SecretKeySpec;
-
 const JSONObject = org.json.JSONObject;
+const pathdata = 'sdcard/bot/메시지삭제.txt';
+const pathlog = 'sdcard/bot/입퇴장로그.txt';
 
-const MY_KEY = "298920935";//KakaoTalk2.db->open_profile->user_id
-
+if(!fs.read(pathdata)) fs.write(pathdata, '{}');
+let jsondata = JSON.parse(fs.read(pathdata));   
+if(!fs.read(pathlog)) fs.write(pathlog, '{}');
+let jsonlog = JSON.parse(fs.read(pathlog));
 let pm = Api.getContext().getSystemService(Context.POWER_SERVICE);
-let wakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, scriptName);
+let wakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "DBBot");
 wakeLock.acquire();
-
 let db = null;
 let db2 = null;
 
-function toByteArray(bytes) {
-	let res = _Array.newInstance(_Byte.TYPE, bytes.length);
-	for (var i = 0; i < bytes.length; i ++) {
-		res[i] = new _Integer(bytes[i]).byteValue();
-	}
-	return res;
-}
-function toCharArray(chars) {
-	return new _String(chars.map((e) => String.fromCharCode(e)).join("")).toCharArray();
+function getMyKey() {
+    try{
+        let cursor_getMyKey = db2.rawQuery("SELECT * FROM open_profile", null);
+        cursor_getMyKey.moveToFirst();
+        let my_data = {};
+        my_data['user_id'] = cursor_getMyKey.getString(cursor_getMyKey.getColumnIndex('user_id'));
+        my_data['name'] = cursor_getMyKey.getString(cursor_getMyKey.getColumnIndex('nickname'));
+        cursor_getMyKey.close();
+        return my_data;
+    } catch(e) {
+        log.e('아무 오픈채팅방에나 들어가신 후 컴파일 해주세요.');
+        return null;
+    }
 }
 
-function decrypt(userId, enc, text) {
-	try {
-		let iv = toByteArray([15, 8, 1, 0, 25, 71, 37, -36, 21, -11, 23, -32, -31, 21, 12, 53]);
-		let password = toCharArray([22, 8, 9, 111, 2, 23, 43, 8, 33, 33, 10, 16, 3, 3, 7, 6]);
-		let prefixes = ["", "", "12", "24", "18", "30", "36", "12", "48", "7", "35", "40", "17", "23", "29", "isabel", "kale", "sulli", "van", "merry", "kyle", "james", "maddux", "tony", "hayden", "paul", "elijah", "dorothy", "sally", "bran"];
-		let salt = new _String((prefixes[enc] + userId).slice(0, 16).padEnd(16, "\0")).getBytes("UTF-8");
-		let secretKeySpec = new SecretKeySpec(SecretKeyFactory.getInstance("PBEWITHSHAAND256BITAES-CBC-BC").generateSecret(new PBEKeySpec(password, salt, 2, 256)).getEncoded(), "AES");
-		let ivParameterSpec = new IvParameterSpec(iv);
-		let cipher = Cipher.getInstance("AES/CBC/PKCS5Padding");
-		cipher.init(2, secretKeySpec, ivParameterSpec);
-		return String(new _String(cipher.doFinal(Base64.decode(text, 0)), "UTF-8"));
-	} catch (e) {
-		Log.error(e.lineNumber+": "+e);
-		return null;
-	}
+function chatLog(room_id, num, type) {
+    if(room_id==undefined || num==undefined) return '필수 인자값이 누락되었습니다.';
+    let chatdata = db.rawQuery("SELECT * FROM chat_logs WHERE chat_id=? ORDER BY created_at DESC LIMIT ?", [room_id, num]);
+    chatdata.moveToLast();
+    let data = [];
+    let column = chatdata.getColumnNames();
+    if(!chatdata.moveToFirst()) {
+        chatdata.close();
+        return [];
+    }
+    do {
+        let obj = {};
+        for (let i = 0; i < column.length; i ++) {
+            obj[column[i]] = chatdata.getString(i);
+            if(column[i] == "v"){
+                obj[column[i]] = JSON.parse(chatdata.getString(i));
+            }
+            if(column[i] == "id"){
+                obj[column[i]] = obj[column[i]].toString();
+            }
+        }
+        obj.message = decrypt(obj.user_id, obj.v.enc, obj.message);
+        try{
+            if(obj.attachment != "{}"){
+                if(obj.attachment == null) obj.attachment = {};
+                else {let at = decrypt(obj.user_id, obj.v.enc, obj.attachment);
+                if(at.includes('src_user').valueOf()){
+                    obj.attachment = JSON.parse(at.replace("\"src_userId\":", "\"src_userId\":\"").replace('}', '"}'));
+                }else{
+                    obj.attachment = JSON.parse(at);
+                }
+                }
+            }
+        }catch(e){
+            Log.e('chatLog: '+e+' ('+e.lineNumber+')');
+            return null;
+            // return JSON.stringify(json,null,4)// at.replace("\"src_userId\":", "\"src_userId\":\"").replace('}\n', '"}\n')
+        }
+        if(type!=undefined) return chattype(obj.type, obj.message, obj.attachment);
+        if(obj.type != 0) data.push('['+getUserdata(obj.user_id).name+'] ['+obj.v.c+'] '+chattype(obj.type, obj.message, obj.attachment));
+    } while (chatdata.moveToNext());
+    chatdata.close();
+    return data;
 }
-function requestPermission() {
-	try {
-		var cmd = new ArrayList();
-		cmd.add("msgbot.sh");
-		var ps = new ProcessBuilder(cmd);
-		ps.redirectErrorStream(true);
-		var pr = ps.start();
-		var in1 = new BufferedReader(new InputStreamReader(pr.getInputStream()));
-		var line;
-		while ((line = in1.readLine()) != null) {
-			Log.d(line);
-		}
-		pr.waitFor();
-		in1.close();
-		return true;
-	} catch (e) {
-		Log.error(e.lineNumber+": "+e);
-		return false;
-	}
-}
-function initializeDB() {
-	requestPermission();
-	try {
-		var kakao1="/storage/emulated/0/KakaoTalk.db", kakao2="/storage/emulated/0/KakaoTalk2.db";
-		if (db != null && db2 != null) {
-			db.close();
-			db2.close();
-		}
-		if(!FileStream.read(kakao1))
-			Log.error(kakao1+":No such file or directory");
-		else
-			db = SQLiteDatabase.openDatabase(kakao1, null, 0);
 
-		if(!FileStream.read(kakao2))
-			Log.error(kakao2+":No such file or directory");
-		else
-			db2 = SQLiteDatabase.openDatabase(kakao2, null, 0);
-		return true;
-	} catch (e) {
-		Log.error(e.lineNumber+": "+e);
-		requestPermission();
-		return false;
-	}
+function getRoomChatJson(room_id, num, option){
+    if(room_id==undefined || num==undefined) return '필수 인자값이 누락되었습니다.';
+    let chatdata = db.rawQuery("SELECT * FROM chat_logs WHERE chat_id=? ORDER BY created_at DESC LIMIT ?", [room_id, num]);
+    chatdata.moveToLast();
+    let data = [];
+    let column = chatdata.getColumnNames();
+    if(!chatdata.moveToFirst()) {
+        chatdata.close();
+        return [];
+    }
+    do {
+        let obj = {};
+        for (let i = 0; i < column.length; i ++) {
+            obj[column[i]] = chatdata.getString(i);
+            if(column[i] == "v"){
+                obj[column[i]] = JSON.parse(chatdata.getString(i));
+            }
+            if(column[i] == "id"){
+                obj[column[i]] = obj[column[i]].toString();
+            }
+        }
+        obj.message = decrypt(obj.user_id, obj.v.enc, obj.message);
+        try{
+            if(obj.attachment != "{}"){
+                if(obj.attachment == null) obj.attachment = {};
+                else {let at = decrypt(obj.user_id, obj.v.enc, obj.attachment);
+                if(at.includes('src_user').valueOf()){
+                    obj.attachment = JSON.parse(at.replace("\"src_userId\":", "\"src_userId\":\"").replace('}', '"}'));
+                }else{
+                    obj.attachment = JSON.parse(at);
+                }
+                }
+            }
+        }catch(e){
+            Log.e('getRoomChatJson: '+e+' ('+e.lineNumber+')');
+            return null;
+            // return JSON.stringify(json,null,4)// at.replace("\"src_userId\":", "\"src_userId\":\"").replace('}\n', '"}\n')
+        }
+        data.push(obj);
+    } while (chatdata.moveToNext());
+    chatdata.close();
+    return data;
 }
+
 function getRecentChatData(count) {
-	try {
-		let cursor = db.rawQuery("SELECT * FROM chat_logs", null);
-		cursor.moveToLast();
-		let data = [];
-		while (count --) {
-			let obj = {};
-			let columns = [
-				"_id",
-				"id",
-				"type",
-				"chat_id",
-				"user_id",
-				"message",
-				"attachment",
-				"created_at",
-				"deleted_at",
-				"client_message_id",
-				"prev_id",
-				"referer",
-				"supplement",
-				"v"
-			];
-			for (let i = 0; i < columns.length; i ++) {
-				obj[columns[i]] = cursor.getString(i);
-				if (columns[i] == "v") {
-					obj.v = JSON.parse(obj.v);
-				}
-			}
-			data.push(obj);
-			cursor.moveToPrevious();
-		}
-		cursor.close();
-		return data;
-	} catch (e) {
-		Log.error(e.lineNumber+": "+e);
-		return null;
-	}
-}
-function getRoomName(chat_id) {
-	try {
-		let room = "";
-		let cursor = db.rawQuery("SELECT link_id FROM chat_rooms WHERE id=" + chat_id, null);
-		cursor.moveToNext();
-		let link_id = cursor.getString(0);
-		cursor.close();
-		if (link_id != null) {
-			let cursor2 = db2.rawQuery("SELECT name FROM open_link WHERE id=" + link_id, null);
-			cursor2.moveToNext();
-			room = cursor2.getString(0);
-			cursor2.close();
-		} else {
-			return null;
-		}
-		return room;
-	} catch (e) {
-		Log.error(e.lineNumber+": "+e);
-		return null;
-	}
+    try {
+        let cursor = db.rawQuery("SELECT * FROM chat_logs", null);
+        cursor.moveToLast();
+        let data = [];
+        let column = cursor.getColumnNames();
+        while (count --) {
+            let obj = {};
+            for (let i = 0; i < column.length; i ++) {
+                obj[column[i]] = cursor.getString(i);
+                if (column[i] == "v") {
+                    obj.v = JSON.parse(obj.v);
+                }
+            }
+            data.push(obj);
+            cursor.moveToPrevious();
+        }
+        cursor.close();
+        return data;
+    } catch (e) {
+        Log.e('getRecentChatData: '+e+' ('+e.lineNumber+')');
+        return null;
+    }
+};
+
+function roomList() {
+    let cursor_roomList = db.rawQuery("SELECT * FROM chat_rooms ORDER BY _id", null);
+    let column = cursor_roomList.getColumnNames();
+    cursor_roomList.moveToFirst();
+    if(!cursor_roomList.moveToFirst()) {
+        cursor_roomList.close();
+        return null;
+    }
+    let list = {};
+    do {
+        let obj = {};
+        for(let i=0; i<column.length; i++) {
+            obj[column[i]] = cursor_roomList.getString(i);
+        }
+        if(obj['type'] == 'MultiChat' || obj['type'] == 'OM' || obj['type'] == 'DirectChat') {
+            let roomName = getRoomName(obj['id']);
+            if(roomName) list[roomName.name] = {'name':roomName.name, 'type':obj['type'],'chat_id':obj['id']};
+        }
+    } while (cursor_roomList.moveToNext());
+    cursor_roomList.close();
+    return list;
 }
 
-function getUserInfo(user_id, info) {
-	try {
-		let cursor = db2.rawQuery("SELECT * FROM friends WHERE id=" + user_id, null);
-		cursor.moveToNext();
-		let data = {};
-		let columns = [
-			"_id",
-			"contact_id",
-			"id",
-			"type",
-			"uuid",
-			"phone_number",
-			"raw_phone_number",
-			"name",
-			"phonetic_name",
-			"profle_image_url",
-			"full_profile_image_url",
-			"original_profile_image_url",
-			"status_message",
-			"chat_id",
-			"brand_new",
-			"blocked",
-			"favorite",
-			"position",
-			"v",
-			"board_v",
-			"ext",
-			"nick_name",
-			"user_type",
-			"story_user_id",
-			"accout_id",
-			"linked_services",
-			"hidden",
-			"purged",
-			"suspended",
-			"member_type",
-			"involved_chat_ids",
-			"contact_name",
-			"enc",
-			"created_at",
-			"new_badge_updated_at",
-			"new_badge_seen_at",
-			"status_action_token"
-		];
-		for (let i = 0; i < columns.length; i ++) {
-			data[columns[i]] = cursor.getString(i);
-		}
-		cursor.close();
-		switch(info){
-			case "_id": return data._id;
-			case "contact_id": return data.contact_id;
-			case "id": return data.id;
-			case "type": return data.type;
-			case "uuid": return data.uuid;
-			case "phone_number": return data.phone_number;
-			case "raw_phone_number": return data.raw_phone_number;
-			case "name": return decrypt(MY_KEY, data.enc, data.name);
-			case "phonetic_name": return data.phonetic_name;
-			case "profle_image_url": return decrypt(MY_KEY, data.enc, data.profle_image_url);
-			case "full_profile_image_url": return decrypt(MY_KEY, data.enc, data.full_profile_image_url);
-			case "original_profile_image_url": return decrypt(MY_KEY, data.enc, data.original_profile_image_url);
-			case "status_message": return decrypt(MY_KEY, data.enc, data.status_message);
-			case "chat_id": return data.chat_id;
-			case "brand_new": return data.brand_new;
-			case "blocked": return data.blocked;
-			case "favorite": return data.favorite;
-			case "position": return data.position;
-			case "v": return decrypt(MY_KEY, data.enc, data.v);
-			case "board_v": return data.board_v;
-			case "ext": return data.ext;
-			case "nick_name": return data.nick_name;
-			case "user_type": return data.user_type;
-			case "story_user_id": return data.story_user_id;
-			case "accout_id": return data.accout_id;
-			case "linked_services": return data.linked_services;
-			case "hidden": return data.hidden;
-			case "purged": return data.purged;
-			case "suspended": return data.suspended;
-			case "member_type": return data.member_type;
-			case "involved_chat_ids": return data.involved_chat_ids;
-			case "contact_name": return decrypt(MY_KEY, data.enc, data.contact_name);
-			case "enc": return data.enc;
-			case "created_at": return data.created_at;
-			case "new_badge_updated_at": return data.new_badge_updated_at;
-			case "new_badge_seen_at": return data.new_badge_seen_at;
-			case "status_action_token": return data.status_action_token;
-			default: throw "requsted Unknown info";
-		}
-	} catch (e) {
-		Log.error(e.lineNumber+": "+e);
-		return null;
-	}
-}
-function DatabaseWatcher() {
-	this.looper = null;
-	this.pre = null;
-}
-DatabaseWatcher.prototype = {
-	start: function () {
-		if (this.looper == null) {
-			Log.debug("looper is null");
-			this.looper = new Timer();
-			this.looper.scheduleAtFixedRate(new TimerTask({
-				run: function () {
-					try {
-						if(!Api.isOn(scriptName)){///봇이 안꺼지는 문제 해결
-							watcher.stop();
-							return;
-						}
-						if (initializeDB()) {
-							let count = DatabaseUtils.queryNumEntries(db, "chat_logs", null);
-							if (this.pre == null) {
-								Log.d("first execute");
-								this.pre = count;
-							} else {
-								let change = count - this.pre;
-								this.pre = count;
-								if (change > 0) {//if something changed
-									let stack = getRecentChatData(change);
-									while (stack.length > 0) {
-										let obj = stack.pop();
-										obj.message = decrypt(obj.user_id, obj.v.enc, obj.message);
-										Log.d(obj.message);
-										let room = getRoomName(obj.chat_id);
-										let send_username = getUserInfo(obj.user_id, "name");
-										/*if(send_username == null) */send_username = "";
-										//else if(obj.v.origin == "KICKMEM") send_username = send_username + "님이 ";
-										//else send_username = send_username + "님 ";
-										if (obj.v.origin == "NEWMEM")
-											Api.replyRoom(room, send_username + "안녕하세요! 공지에 있는 규칙 필독해주세요.");
-										else if (obj.v.origin == "DELMEM" && JSONObject(obj.message).get("feedType") == 2)
-											Api.replyRoom(room, send_username + "안녕히가세요!");
-										else if (obj.v.origin == "KICKMEM" || obj.v.origin == "DELMEM"){
-											obj.message = new JSONObject(obj.message);
-											let by = getUserInfo(obj.message.get("member").getString("userId"), "name");
-											/*if(by == null) */by = "";
-											//else by = by + "님을 ";
-											if(by == "" && send_username == "") Api.replyRoom(room, "다음부턴 착하게 사세요!");
-											else Api.replyRoom(room, send_username + by + "강퇴하였습니다. 다음부턴 착하게 사세요!");
-										}
-										/*else if (obj.type == 26 && obj.message == "who") {
-											obj.attachment = new JSONObject(decrypt(obj.user_id, obj.v.enc, obj.attachment));
-											let userid = obj.attachment.getString("src_userId");
-											Api.replyRoom(room, "이름: "+getUserInfo(userid, "name")
-											+"\n프로필 사진: "+getUserInfo(userid, "original_profile_image_url")
-											+"\n상태 메시지: "+getUserInfo(userid, "status_message"));
-										}*/
-										else if (obj.type == 26 && obj.message == "photolink") {
-											obj.attachment = new JSONObject(decrypt(obj.user_id, obj.v.enc, obj.attachment));
-											/*if(obj.attachment.get("src_type") != 2)
-											{
-												Api.replyRoom(room, "사진이 아닙니다!");
-												return;
-											}*/
-											let chat_id = obj.attachment.get("src_logId");
-											let cursor = db.rawQuery("SELECT * FROM chat_logs WHERE id=" + chat_id, null);
-											cursor.moveToNext();
-											let userId1=cursor.getString(4), msg1=cursor.getString(6);
-											cursor.close();
-											let photo = decrypt(userId1, getUserInfo(userId1, "enc"), msg1);
-											photo = new JSONObject(photo);
-											Api.replyRoom(room, "링크: "+photo.get("url"));
-										}
-									}
-								}
-							}
-						}
-					} catch (e) {
-						Log.error(e.lineNumber+": "+e);
-					}
-				}
-			}), 0, 1000);
-			return true;
-		}
-		return false;
-	},
-	stop: function () {
-		if (this.looper != null) {
-			this.looper.cancel();
-			this.looper = null;
-			return true;
-		}
-		return false;
-	}
+function getRoomName(chat_id) {
+    try {
+        let room_data = {};
+        let result = {};
+        let cursor_getRoomName = db.rawQuery("SELECT * FROM chat_rooms WHERE id=?", [chat_id]);
+        let columns = cursor_getRoomName.getColumnNames();
+        if(!cursor_getRoomName.moveToFirst()) {
+            cursor_getRoomName.close();
+            return null;
+        }
+        cursor_getRoomName.moveToFirst();
+        for (let i = 0; i < columns.length; i ++) {
+            room_data[columns[i]] = cursor_getRoomName.getString(i);
+        }    
+        cursor_getRoomName.close();
+        result['moim_meta'] = room_data['moim_meta'];
+        result['chat_id'] = chat_id;
+        if(room_data['private_meta'] == null) {
+            if(room_data['type'] == 'DirectChat') {
+                let user_id = room_data['members'].replace('[', '').replace(']','');
+                result['name'] = getUserdata(user_id).name;
+                result['type'] = room_data['type'];
+                return result;
+            } else if(room_data['type'] == "OM") {
+                if (room_data['link_id']) {
+                    let openchat_data = {};
+                    let cursor2 = db2.rawQuery("SELECT * FROM open_link WHERE id=?",[link_id]);
+                    let column2 = cursor2.getColumnNames();
+                    cursor2.moveToFirst();
+                    for (let i = 0; i < column2.length; i ++) {
+                        openchat_data[column2[i]] = cursor2.getString(i);
+                    }    
+                    cursor2.close();
+                    result['name'] = openchat_data['name'];
+                    result['host_id'] = openchat_data['user_id'];
+                    result['url'] = openchat_data['url'];
+                    return result;
+                } else return null;
+            } else return null;
+        } else {
+            result['name'] = JSON.parse(room_data['private_meta'])['name'];
+            result['type'] = room_data['type'];
+            return result;
+        }
+    } catch (e) {
+        Log.e('getRoomName: '+e+' ('+e.lineNumber+')');
+        return null;
+    }
 };
+
+function getUserdata(id) {
+    if(id == MY_KEY) return {'name':BOT_NAME};
+    let userdata = db2.rawQuery("SELECT * FROM friends WHERE id=?", [id]);
+    let keys = userdata.getColumnNames();
+    userdata.moveToNext();
+    let data = {};
+    for (let i = 0; i < keys.length; i ++) {
+        data[keys[i]] = userdata.getString(i);
+    }
+    try{
+        data.v = JSON.parse(decrypt(MY_KEY, data.enc, data.v));
+    }catch(e){
+        data.v = {};
+    }
+    let finalData = {};
+    finalData.name = decrypt(MY_KEY, data.enc, data.name);
+    try{
+        finalData.profile_image_url = decrypt(MY_KEY, data.enc, data.original_profile_image_url);
+        finalData.status_message = decrypt(MY_KEY, data.enc, data.status_message);
+        finalData.created_at = new Date(Number(data.created_at)).toLocaleString();
+        finalData.id = data.id;
+        finalData.nick_name = data.nick_name;
+        data.board_v = JSON.parse(decrypt(MY_KEY, data.enc, data.board_v));
+        finalData.background_image_url = data.board_v.originalBackgroundImageUrl;
+        finalData.animated_profile_image_url = data.board_v.originalAnimatedProfileImageUrl;
+        userdata.close();
+    } catch(e) {}
+    return finalData;
+}
+
+function getAllusers(chat_id) {
+    try {
+        if(!initializeDB()) initializeDB();
+        let cursor_getAllusers = db2.rawQuery("SELECT * FROM friends", null);
+        cursor_getAllusers.moveToFirst();
+        if(!cursor_getAllusers.moveToFirst()) {
+            cursor_getAllusers.close();
+            return null;
+         }        
+        let data = {};
+        do {
+            data[cursor_getAllusers.getString(cursor_getAllusers.getColumnIndex('id'))] = cursor_getAllusers.getString(cursor_getAllusers.getColumnIndex('name'));
+        } while (cursor_getAllusers.moveToNext());
+        cursor_getAllusers.close();
+        let allids = getAllids(chat_id);
+        if(allids == null) return null;
+        let result = {};
+        for(let i=0;i<allids.length;i++) {
+            if(data[allids[i]] != undefined) {
+                result[allids[i]] = decrypt(MY_KEY,29,data[allids[i]]);
+                delete data[allids[i]];
+            } else continue;
+        }
+        return result;      
+    }  catch (e) {
+        Log.e('getAllusers: '+e+' ('+e.lineNumber+')');
+        return null;
+    }
+}
+
+function getAllids(chat_id) {
+    try {
+        let list = "";
+        let cursor_getAllids = db.rawQuery("SELECT members FROM chat_rooms WHERE id=?", [chat_id]);
+        cursor_getAllids.moveToNext();
+        list = cursor_getAllids.getString(0);
+        cursor_getAllids.close();
+        list = list.replace("[", '').replace("]", '');
+        let array = [];
+        for(let i = 0; i<list.split(',').length;i++) array.push(list.split(',')[i]);
+        return array.sort();
+    }  catch (e) {
+        Log.e('getAllids: '+e+' ('+e.lineNumber+')');
+        return null;
+    }
+};
+
+function chattype(type, message, att){
+    /* 참고: https://cafe.naver.com/nameyee/25885 */
+    try{
+        if(att == null) att = {};   
+        type = Number(type);
+        if(type > 16380) type -= 16384;
+        
+        switch(Number(type)) {
+            case 0: //입퇴장, 가리기 등
+                message = JSON.parse(message);
+                switch(Number(message.feedType)) {
+                    case 2: //퇴장
+                        return message.nickName+'님이 나갔습니다.';
+
+                    case 4: //입장
+                        return message.nickName+'님이 들어왔습니다.';
+
+                    case 6: //내보내기
+                        return message.nickName+'님을 내보냈습니다.';
+                    
+                    default: 
+                        return null;
+                } 
+
+            case 1: //일반 메시지
+                if(att.path == undefined){ // 500자 미만
+                if( message != undefined) return '\n'+message;    
+                } else return '\n'+org.jsoup.Jsoup.connect('http://dn-m.talk.kakao.com'+att.path).ignoreContentType(true).get().text();              
+            
+            case 2: // 사진 한 장
+                return '[[사진]]\n'+att.url;
+            
+            case 3: // 동영상
+                return '[[동영상]]\n'+att.url;        
+            
+            case 4: //연락처
+                return '[[연락처]]\n'+att.name+', '+att.url;
+
+            case 5: // 음성메시지
+                return '[[음성메시지]]\n'+att.url;
+                
+            case 6: //이모티콘
+                return '[[이모티콘]]\nhttps://item.kakaocdn.net/dw/'+att.path.replace('webp', "png");
+
+            case 12: //이모티콘
+                return "[[이모티콘]]\nhttps://item.kakaocdn.net/dw/"+att.path.replace('webp', 'png').replace('emot', 'thum');
+                                
+            case 14: //투표
+                return "[[투표]]\nhttp://kaan.dothome.co.kr/redirect_close.php?adress="+att.os[1].url;
+
+            case 17: //카카오톡 프로필
+                return '[[프로필]]\n'+att.nickName;
+                
+            case 18: //파일
+                return '[[파일]]\n'+att.url;
+                
+            case 20: //이모티콘
+                return "[[이모티콘]]\nhttps://item.kakaocdn.net/dw/"+att.path.replace('webp', 'png').replace('emot', 'thum');
+                
+            case 23: // #검색
+                return message;
+
+            case 24: //공지
+                return '\n'+message;
+                
+            case 26: //답장
+                let to = getUserdata(att["src_userId"]).name;
+                let pre_message = att.src_message;
+                if(to && pre_message) return '\n[[' + getUserdata(att["src_userId"]).name + "] \""+att.src_message + "\" 에 답장]] \n\n메시지: "+message;
+                else return '[[답장]]\n메시지: '+message;
+
+            case 27: // 묶음사진
+                return '[[묶음사진]]\n'+att.imageUrls.join('\n\n');
+                
+            case 51: //보이스톡
+                if(att.type == 'cinvite') return '\n📞 보이스톡해요';
+                else if(att.type == 'canceled') return '\n📞 보이스톡 취소';
+                else if(att.type == 'bye') return '\n📞 보이스톡 종료';
+            
+            case 97: //투표 등록
+                return '[[투표]]\nhttp://kaan.dothome.co.kr/redirect_close.php?adress='+att.os[1].url;
+                
+            case 98: // 공지, 투표 공유
+                return '[[공유]]\nhttp://kaan.dothome.co.kr/redirect_close.php?adress='+att.os[1].url;
+
+            default:
+                return message+' (type: '+type+')';
+        }      
+        
+    }catch(e){
+        Log.e('chattype: '+e+' ('+e.lineNumber+')');
+        return null;
+    }
+}
+
+function now() {
+    return new Date().getFullYear()+'-'+(new Date().getMonth()+1)+'-'+new Date().getDate()+' '+new Date().getHours()+':'+new Date().getMinutes();
+}
+
+DatabaseWatcher.prototype = {
+    start: function () {
+        if (this.looper == null) {
+        this.looper = new Timer();
+        this.looper.scheduleAtFixedRate(new TimerTask({
+            run: function () {
+            try {
+                if (initializeDB()) {
+                let count = DatabaseUtils.queryNumEntries(db, "chat_logs", null);
+                if (this.pre == null) {
+                    this.pre = count;
+                } else {
+                    let change = count - this.pre;
+                    this.pre = count;
+                    if (change > 0) {
+                    let stack = getRecentChatData(change);
+                    while (stack.length > 0) {
+                        let obj = stack.pop();
+                        obj.message = decrypt(obj.user_id, obj.v.enc, obj.message);
+                        if(obj.attachment != "{}"){
+                            if(obj.attachment == null) obj.attachment = {};
+                            else {
+                                let at = decrypt(obj.user_id, obj.v.enc, obj.attachment);
+                                if(at.includes('src_user').valueOf()){
+                                    obj.attachment = JSON.parse(at.replace("\"src_userId\":", "\"src_userId\":\"").replace('}', '"}'));
+                                }else{
+                                    obj.attachment = JSON.parse(at);
+                                }
+                            }
+                        }
+                        let room_data = getRoomName(obj.chat_id);
+                        if(room_data == null) continue;
+                        let room = room_data.name;
+                        let type = room_data.type;
+                        if(room != null) {
+                            if(jsondata[room] == undefined) jsondata[room] = {'입퇴장감지':true, '삭제감지':true};
+                            if(type == "OM" && jsonlog[room] == undefined) jsonlog[room] = {};
+                            let message;
+                            switch(obj.v.origin) {
+                                case 'NEWMEM': //입장
+                                
+                                    message = JSON.parse(obj.message);
+                                    if(type == "OM") { //만약 오픈채팅방이라면
+                                        if(jsonlog[room][obj.user_id] == undefined) jsonlog[room][obj.user_id] = [];
+                                        jsonlog[room][obj.user_id].push('['+now()+'] '+message.members[0].nickName+" 닉네임으로 입장");
+                                        if(jsonlog[room][obj.user_id].length > 1) { //들낙
+                                            if(kaan[room]!=undefined) Api.replyRoom(room, kaan[room]['in_old'].replace('${name}', message.members[0].nickName)+Lw+'\n\n입퇴장기록:\n'+jsonlog[room][obj.user_id].join('\n\n'));
+                                            else Api.replyRoom(room, message.members[0].nickName+'님, 돌아오신걸 환영해요!'+Lw+'\n\n입퇴장기록: '+Lw+'\n'+jsonlog[room][obj.user_id].join('\n\n'));
+                                        } else { //새로 입장
+                                            if(kaan[room]!=undefined) Api.replyRoom(room, kaan[room]['in_new'].replace('${name}', message.members[0].nickName));
+                                            else Api.replyRoom(room, message.members[0].nickName+'님, 어서오세요!');
+                                        }
+                                    } else { //일반 채팅방이라면
+                                        if(kaan[room]!=undefined) Api.replyRoom(room, kaan[room]['in_new'].replace('${name}', message.members.map(e=>e.nickName).join(', ')));
+                                        else Api.replyRoom(room, message.members.map(e=>e.nickName).join(', ')+'님, 어서오세요:)');
+                                    }
+                                    break;
+
+                                case 'DELMEM': //퇴장
+                                    message = JSON.parse(obj.message);
+                                    if (message.feedType == 2) {
+                                        if(type == "OM") { //오픈 채팅방이라면
+                                            if(jsonlog[room][obj.user_id] == undefined) jsonlog[room][obj.user_id] = [];
+                                            jsonlog[room][obj.user_id].push('['+now()+'] '+message.member.nickName+" 닉네임으로 퇴장");
+                                            if(kaan[room]!=undefined) Api.replyRoom(room, kaan[room]['out'].replace('${name}', message.member.nickName));
+                                            else Api.replyRoom(room, message.member.nickName+'님, 안녕히 가세요:)');
+                                        } else { //일반 채팅방이라면
+                                            if(kaan[room]!=undefined) Api.replyRoom(room, kaan[room]['out'].replace('${name}', message.member.nickName));
+                                            else Api.replyRoom(room, message.member.nickName+'님, 안녕히 가세요:)');
+                                        }
+                                    } else if(message.feedType == 6) { //내보내짐
+                                        /*
+                                        if(jsonlog[room][message.member.userId] == undefined) jsonlog[room][message.member.userId] = [];
+                                        jsonlog[room][message.member.userId].push('['+now()+'] '+message.member.nickName+" 닉네임으로 내보내짐 (by"+getUserdata(obj.user_id).name+")");
+                                        */
+                                        if(kaan[room]!=undefined) Api.replyRoom(room, kaan[room]['kick'].replace('${name1}',getUserdata(obj.user_id).name).replace('${name2}', message.member.nickName));
+                                        else Api.replyRoom(room,getUserdata(obj.user_id).name + "님이 " + message.member.nickName + "님을 내보내셨습니다.");
+                                    }                                   
+                                    break;
+                                    
+                                
+                                case 'KICKMEM'://방장이 내보내기                                     
+                                    message = JSON.parse(obj.message);                                    
+                                    if(message.feedType == 6) {
+                                        /*
+                                        if(jsonlog[room][message.member.userId] == undefined) jsonlog[room][message.member.userId] = [];
+                                        jsonlog[room][message.member.userId].push('['+now()+'] '+message.member.nickName+" 닉네임으로 내보내짐 (by"+getUserdata(obj.user_id).name+")");
+                                        */
+                                        if(kaan[room]!=undefined) Api.replyRoom(room, kaan[room]['kick'].replace('${name1}',getUserdata(obj.user_id).name).replace('${name2}', message.member.nickName));
+                                        else Api.replyRoom(room,getUserdata(obj.user_id).name + "님이 " + message.member.nickName + "님을 내보내셨습니다.");
+                                    } 
+                                    break;
+
+                                case 'SYNCREWR': //메시지 가리기     
+                                    
+                                    if(!jsondata[room]['삭제감지']) break;           
+                                    message = JSON.parse(obj.message);
+                                    if(message.feedType == 13) {
+                                        try{                                                                                    
+                                            let chat = getRoomChatJson(obj.chat_id, 50, 1);     
+                                            for(let i=0; i < 50; i++) {
+                                                if(chat[i]['id'] == message.logId) {       
+                                                    let pre_message = decrypt(chat[i]['user_id'], chat[i].v.enc, chat[i].v.previous_message);                      
+                                                    let m = chattype(message.type, pre_message, chat[i]['attachment']);                          
+                                                    Api.replyRoom(room, getUserdata(obj.user_id).name+'님이 '+getUserdata(chat[i]['user_id']).name+'님의 메시지를 가림!'+Lw+'\n\n가려진 메시지:\n'+m);
+                                                    break;
+                                                } else continue;
+                                            }  
+                                        } catch(e) {
+                                            Log.e('가리기: '+e+' ('+e.lineNumber+')');
+                                        }        
+                                    }
+                                    break;
+                                    
+                                case 'REWRITE': //메시지 가리기(By 방장)     
+                                    
+                                    if(!jsondata[room]['삭제감지']) break;           
+                                    message = JSON.parse(obj.message);
+                                    if(message.feedType == 13) {
+                                        try{                                                                                    
+                                            let chat = getRoomChatJson(obj.chat_id, 50, 1);     
+                                            for(let i=0; i < 50; i++) {
+                                                if(chat[i]['id'] == message.logId) {       
+                                                    let pre_message = decrypt(chat[i]['user_id'], chat[i].v.enc, chat[i].v.previous_message);                      
+                                                    let m = chattype(message.type, pre_message, chat[i]['attachment']);                          
+                                                    Api.replyRoom(room, getUserdata(obj.user_id).name+'님이 '+getUserdata(chat[i]['user_id']).name+'님의 메시지를 가림!'+Lw+'\n\n가려진 메시지:\n'+m);
+                                                    break;
+                                                } else continue;
+                                            }  
+                                        } catch(e) {
+                                            Log.e('가리기: '+e+' ('+e.lineNumber+')');
+                                        }        
+                                    }
+                                    break;
+                                    
+                                case 'SYNCMEMT': //방장교체                                                       
+                                    message = JSON.parse(obj.message);                                           
+                                    if(message.feedType == 15) {
+                                        Api.replyRoom(room, '새로운 방장 '+message.newHost.nickName + '님을 환영해 주세요!');
+                                    }
+                                    break;
+                                
+                                case 'SYNCDLMSG': //메시지 삭제  
+                                    
+                                    if(!jsondata[room]['삭제감지']) break;                                                      
+                                    message = JSON.parse(obj.message);                                           
+                                    if (message.feedType == 14 && message.hidden == true) {
+                                        try{                                                                  
+                                            let chat = getRoomChatJson(obj.chat_id, 50, 1);     
+                                            for(let i=0; i < 50; i++) {
+                                                if(chat[i]['id'] == message.logId) {                                         
+                                                    let m = chattype(chat[i]['type'], chat[i]['message'], chat[i]['attachment']);                                                                   
+                                                    if(jsondata[room]['삭제감지']) Api.replyRoom(room, getUserdata(obj.user_id).name+'님이 메시지를 삭제함!'+Lw+'\n\n삭제된 메시지:\n'+m);
+                                                    break;
+                                                } else continue;
+                                            }
+                                        } catch(e) {
+                                            Log.e('삭메: '+e+' ('+e.lineNumber+')');
+                                        }                                                                                         
+                                    }
+                                    break;
+                                
+                                case 'DELETEMSG': //메시지 삭제(방장)
+                                    
+                                    if(!jsondata[room]['삭제감지']) break;                                                      
+                                    message = JSON.parse(obj.message);                                           
+                                    if (message.feedType == 14 && message.hidden == true) {
+                                        try{                                                                  
+                                            let chat = getRoomChatJson(obj.chat_id, 50, 1);     
+                                            for(let i=0; i < 50; i++) {
+                                                if(chat[i]['id'] == message.logId) {                                         
+                                                    let m = chattype(chat[i]['type'], chat[i]['message'], chat[i]['attachment']);                                                                   
+                                                    if(jsondata[room]['삭제감지']) Api.replyRoom(room, getUserdata(obj.user_id).name+'님이 메시지를 삭제함!'+Lw+'\n\n삭제된 메시지:\n'+m);
+                                                    break;
+                                                } else continue;
+                                            }
+                                        } catch(e) {
+                                            Log.e('삭메: '+e+' ('+e.lineNumber+')');
+                                        }                                                                                         
+                                    }
+                                    break;
+
+                                default:
+                                    break;
+                            }                            
+                        }
+                    }
+                    }
+                }
+                }
+            } catch (e) {
+                Log.e(e+' ('+e.lineNumber+')');
+            }
+            }
+        }), 0, 1000);
+        return true;
+        }
+        return false;
+    },
+    stop: function () {
+        if (this.looper != null) {
+            this.looper.cancel();
+            this.looper = null;
+            return true;
+        }
+        return false;
+    }
+};
+
 let watcher = new DatabaseWatcher();
 watcher.start();
 
+/*----------------------------*/
+ 
+function response(room, msg, sender, isGroupChat, replier, ImageDB, packageName){ 
+    if(msg=='/MY_KEY') return Api.replyRoom(room, getMyKey());
+
+    if(msg=='/공지') {
+       let room_data = getRoomName(roomList()[room]['chat_id']);
+       if(room_data==null) return Api.replyRoom(room,'다시 시도해 주세요');
+       else return Api.replyRoom(room,'[공지 바로가기]\nhttp://kaan.dothome.co.kr/redirect_close.php?adress=kakaomoim://post?referer=b&chat_id='+room_data['chat_id']+'&post_id='+room_data['moim_meta'].split('"ct\":\"[{\\\"id\\\":\\\"')[1].split('\\\",\\\"owner_id\\\":')[0]);            
+    }
+    
+    if(msg.startsWith("ev.")&&admin_name==sender &&admin_hash==ImageDB.getProfileHash()) {
+        try{
+            let startTime=new Date().getTime();
+            if(msg.length>500)msg = chatLog(roomList()[room]['chat_id'], 1, 1).replace('\n','');
+            //msg=msg.replace(/fs/g,'FileStream').replace(/jsoup/g,'org.jsoup.Jsoup.connect');
+            Api.replyRoom(room, eval(msg.substr(3)));
+            let endTime=new Date().getTime();
+            Api.replyRoom(room, "소요시간: "+(endTime-startTime)/1000+"s");
+        }catch(e){
+            Api.replyRoom(room, msg+'\n'+e+"\nErrorLine: "+e.lineNumber);
+        }
+        return;
+    }
+    if(msg=='/방정보') {
+        let room_data=roomList()[room];
+        if(room_data==null) return Api.replyRoom(room,'다시 시도해 주세요');
+        let user_data = getAllusers(room_data['chat_id']);
+        let list=[];
+        for(i in user_data) list.push('이름: '+user_data[i]+'\n    user_id: '+i);
+        return replier.reply('• 방이름: '+room_data['name']+'\n\n• chat_id: '+room_data['chat_id']+Lw+'\n\n• 멤버: \n\n'+list.map(e=>'  ::'+e).join('\n\n'));
+    }
+    if(msg=='/해시코드') return replier.reply(sender+'님의 해시코드: '+ImageDB.getProfileHash());
+        
+    if(msg.replace(/ /gi, '') == '/감지off' && jsondata[room] != undefined) {
+        if(admin_name!=sender || admin_hash != ImageDB.getProfileHash()) return Api.replyRoom(room, pb+'권한이 없어 거부되었습니다.');
+        if(!jsondata[room]['삭제감지']) return Api.replyRoom(room, pb+'이미 해당 기능이 비활성화되어있습니다.\n"/감지on"을 입력해 기능을 활성화시켜보세요!');
+        else {
+            jsondata[room]['삭제감지'] = false;
+            fs.write(pathdata, JSON.stringify(jsondata, null, 4));
+            return Api.replyRoom(room, pb+'메시지 삭제 감지 기능이 비활성화되었습니다!\n"/감지on"을 입력하시면 기능이 활성화됩니다.');
+        }
+    } 
+    
+    if(msg.replace(/ /gi, '') == '/감지on' && jsondata[room] != undefined) {
+        if(admin_name!=sender || admin_hash != ImageDB.getProfileHash()) return Api.replyRoom(room, pb+'권한이 없어 거부되었습니다.');
+        if(jsondata[room]['삭제감지']) return Api.replyRoom(room, pb+'이미 해당 기능이 활성화되어있습니다.\n"/감지off"를 입력하면 기능이 비활성화됩니다.');
+        else {
+            jsondata[room]['삭제감지'] = true;
+            fs.write(pathdata, JSON.stringify(jsondata, null, 4));
+            return Api.replyRoom(room, pb+'메시지 삭제 감지 기능이 활성화되었습니다!\n"/감지off"을 입력하시면 기능이 비활성화됩니다.');
+        }
+    } 
+    
+    if(msg.startsWith('/로그.')) {
+        let roomlist = roomList();
+        if(!roomlist[room]) return Api.replyRoom(room, 'Error: 다시 시도해 주세요.');
+        if(!Number.isInteger(Number(msg.substr(4))) || Number(msg.substr(4))<0) return Api.replyRoom(room, '/로그.자연수 형식으로 작성해 주세요');
+        if(Number(msg.substr(4)) > 99) return Api.replyRoom(room, '100개 이하의 채팅만 불러올 수 있습니다.');
+        return Api.replyRoom(room, '[채팅로그]'+Lw+'\n\n'+chatLog(roomlist[room]['chat_id'], Number(msg.substr(4).trim())).reverse().join('\n\n'+'\u2501'.repeat(11)+'\n\n'));
+    }
+
+    if(msg=='/강제중지' && sender==admin_name && ImageDB.getProfileHash()==admin_hash) {
+        watcher.stop();
+        return Api.replyRoom(room, 'OFF');
+    }
+}
+
 function onStartCompile() {
-	watcher.stop();
+    watcher.stop();
+    fs.write(pathlog, JSON.stringify(jsonlog, null, 4));
 }
-function response(room, msg, sender, isGroupChat, replier, imageDB, packageName) {
-	if(msg == "!bot-off")
-	{
-		replier.reply(scriptName+"을(를) 종료합니다.");
-		watcher.stop();
-		Api.off(scriptName);
-	}
+
+function toByteArray(bytes) {
+    let res = _Array.newInstance(_Byte.TYPE, bytes.length);
+    for (var i = 0; i < bytes.length; i ++) {
+        res[i] = new _Integer(bytes[i]).byteValue();
+    }
+    return res;
+};
+
+function toCharArray(chars) {
+    return new _String(chars.map((e) => String.fromCharCode(e)).join("")).toCharArray();
+};
+
+function decrypt(userId, enc, text) {
+    try {
+        let iv = toByteArray([15, 8, 1, 0, 25, 71, 37, -36, 21, -11, 23, -32, -31, 21, 12, 53]);
+        let password = toCharArray([22, 8, 9, 111, 2, 23, 43, 8, 33, 33, 10, 16, 3, 3, 7, 6]);
+        let prefixes = ["", "", "12", "24", "18", "30", "36", "12", "48", "7", "35", "40", "17", "23", "29", "isabel", "kale", "sulli", "van", "merry", "kyle", "james", "maddux", "tony", "hayden", "paul", "elijah", "dorothy", "sally", "bran"];
+        let salt = new _String((prefixes[enc] + userId).slice(0, 16).padEnd(16, "\0")).getBytes("UTF-8");
+        let secretKeySpec = new SecretKeySpec(SecretKeyFactory.getInstance("PBEWITHSHAAND256BITAES-CBC-BC").generateSecret(new PBEKeySpec(password, salt, 2, 256)).getEncoded(), "AES");
+        let ivParameterSpec = new IvParameterSpec(iv);
+        let cipher = Cipher.getInstance("AES/CBC/PKCS5Padding");
+        cipher.init(2, secretKeySpec, ivParameterSpec);
+        return String(new _String(cipher.doFinal(Base64.decode(text, 0)), "UTF-8"));
+    } catch (e) {
+        return null;
+    }
 }
-function onCreate(savedInstanceState, activity) {
+ function requestPermission() {
+    try {
+        Runtime.getRuntime().exec([
+        "su",
+        "mount -o remount rw /data/data/com.kakao.talk/databases",
+        "chmod -R 777 /data/data/com.kakao.talk/databases"
+        ]).waitFor();
+        return true;
+    } catch (e) {
+        return false;
+    }
 }
-function onStart(activity) {}
-function onResume(activity) {}
-function onPause(activity) {}
-function onStop(activity) {}
+function initializeDB() {
+    try {
+        if (db != null && db2 != null) {
+        db.close();
+        db2.close();
+        }
+        db = SQLiteDatabase.openDatabase("/data/data/com.kakao.talk/databases/KakaoTalk.db", null, SQLiteDatabase.CREATE_IF_NECESSARY);
+        db2 = SQLiteDatabase.openDatabase("/data/data/com.kakao.talk/databases/KakaoTalk2.db", null, SQLiteDatabase.CREATE_IF_NECESSARY);
+        return true;
+    } catch (e) {
+        requestPermission();
+        return false;
+    }
+}
+
+function DatabaseWatcher() {
+    this.looper = null;
+    this.pre = null;
+};
