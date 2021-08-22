@@ -6,10 +6,7 @@
 ## 설치방법
 bot.js에서 봇이름과 KEY값을 변경해 줍니다.그러고 나서 [메신저봇R](https://play.google.com/store/apps/details?id=com.xfl.msgbot)에 붙여넣어 주세요<br>
 msgbot.sh를 /bin/폴더에 복사하고 권한을 777또는 실행에 모두 체크합니다<br/>
-## 추가예정
-추가예정인 것들<br>
-### 공지읽기
-<code>/공지</code>라고하면 공지를 출력합니다.<br>
+
 ## 자주하는 질문
 ### 컴파일이 안돼여ㅠㅠㅠ<br>
 -> 코드 제대로 복붙했는지 확인해주세요<br>
@@ -30,3 +27,14 @@ msgbot.sh를 /bin/폴더에 복사하고 권한을 777또는 실행에 모두 �
 -> 카톡 저장 메모리가 꽉차면 DB 업데이트를 해요. 한번 활동이 왕성한 아무 오픈쳇팅방에 들어가봐요<br>
 ### "null님 안녕하세요! 공지에 있는 규칙 필독해주세요."같은 이상한 메시지가 떠요<br>
 -> 어... db오류인데 속도가 너무느려서 이전 Thread가 끝나지 못하고 db를 읽고있는데 다음 thread가 작동하면 그럴지도?(정확한 원인은 분석중 입니다!)<br>
+
+## 기능소개
+### 입퇴장 감지
+![image](https://user-images.githubusercontent.com/88792658/130347858-cd641285-e07c-48a4-8ff4-92f267f92760.png)
+![image](https://user-images.githubusercontent.com/88792658/130347868-6c5f3f37-cfb3-4e78-8bdf-3d315c02859a.png)
+### 내보내기시 누가 내보냈는지 확인가능
+![image](https://user-images.githubusercontent.com/88792658/130347880-2e2b38c7-39c2-4ab9-93e5-c702715b1b3f.png)
+### 메시지 삭제, 가리기 시 메시지 출력
+![image](https://user-images.githubusercontent.com/88792658/130347890-780b3314-8f42-48cf-b7af-007ec8319472.png)
+### 메시지 삭제 감지on/off 기능
+![image](https://user-images.githubusercontent.com/88792658/130347910-7d427055-f649-4b8c-b7e9-9d76f9ede82c.png)
